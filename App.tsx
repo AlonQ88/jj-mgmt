@@ -25,9 +25,22 @@ type SignedInUser = {
 
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
+const getApiBaseUrl = () => {
+  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+    return process.env.EXPO_PUBLIC_API_BASE_URL;
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:4000';
+  }
+
+  return 'http://localhost:4000';
+};
+
 export default function App() {
   const [user, setUser] = useState<SignedInUser | null>(null);
   const [loadingGoogleProfile, setLoadingGoogleProfile] = useState(false);
+  const [backendSyncMessage, setBackendSyncMessage] = useState<string | null>(null);
 
   const redirectUri = useMemo(
     () =>
@@ -51,6 +64,37 @@ export default function App() {
     scopes: ['profile', 'email'],
     redirectUri,
   });
+
+  const syncSocialAuthWithBackend = async (
+    provider: SocialProvider,
+    payload: { idToken?: string; accessToken?: string }
+  ) => {
+    if (!payload.idToken && !payload.accessToken) {
+      setBackendSyncMessage(`No ${provider} token available for backend sync.`);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/auth/social/${provider}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        setBackendSyncMessage(`Backend sync complete (${provider}).`);
+        return;
+      }
+
+      const errorBody = await response.text();
+      setBackendSyncMessage(`Backend sync returned ${response.status} (${provider}). ${errorBody}`);
+    } catch (error) {
+      setBackendSyncMessage(`Backend sync failed (${provider}).`);
+      console.warn(`Failed to sync ${provider} auth with backend.`, error);
+    }
+  };
 
   useEffect(() => {
     const loadGoogleProfile = async () => {
@@ -85,6 +129,16 @@ export default function App() {
       } finally {
         setLoadingGoogleProfile(false);
       }
+
+      const idTokenFromParams =
+        googleResponse?.type === 'success' && typeof googleResponse.params?.id_token === 'string'
+          ? googleResponse.params.id_token
+          : undefined;
+
+      await syncSocialAuthWithBackend('google', {
+        idToken: idTokenFromParams,
+        accessToken,
+      });
     };
 
     void loadGoogleProfile();
@@ -117,6 +171,10 @@ export default function App() {
         name: fullName || undefined,
         email: credential.email ?? undefined,
       });
+
+      await syncSocialAuthWithBackend('apple', {
+        idToken: credential.identityToken ?? undefined,
+      });
     } catch (error) {
       console.warn('Apple sign-in was cancelled or failed.', error);
     }
@@ -124,6 +182,7 @@ export default function App() {
 
   const handleSignOut = () => {
     setUser(null);
+    setBackendSyncMessage(null);
   };
 
   const isGoogleConfigured =
@@ -175,6 +234,7 @@ export default function App() {
             <Text style={styles.welcomeText}>Signed in with {user.provider}</Text>
             <Text style={styles.profileText}>Name: {user.name ?? 'Not provided'}</Text>
             <Text style={styles.profileText}>Email: {user.email ?? 'Not provided'}</Text>
+            {backendSyncMessage && <Text style={styles.backendText}>{backendSyncMessage}</Text>}
             <Pressable onPress={handleSignOut} style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
               <Text style={styles.buttonText}>Sign out</Text>
             </Pressable>
@@ -257,5 +317,9 @@ const styles = StyleSheet.create({
   profileText: {
     fontSize: 14,
     color: '#344054',
+  },
+  backendText: {
+    fontSize: 12,
+    color: '#475467',
   },
 });

@@ -56,6 +56,12 @@ Then set OAuth client IDs in `.env`:
 - `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`
 - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
+- `EXPO_PUBLIC_API_BASE_URL` (optional override for backend URL)
+
+API URL defaults:
+- Android emulator: `http://10.0.2.2:4000`
+- iOS simulator/web: `http://localhost:4000`
+- Physical device: set `EXPO_PUBLIC_API_BASE_URL` to your machine LAN IP (for example `http://192.168.1.20:4000`)
 
 ### Run
 
@@ -129,4 +135,7 @@ Before opening a pull request, run:
 
 - Google sign-in is implemented in `App.tsx` using `expo-auth-session`.
 - Apple sign-in is available on iOS via `expo-apple-authentication`.
-- This is currently a client-side starter flow. For production, connect tokens to a backend auth system (for example Firebase, Supabase, or custom API session exchange).
+- The app now posts social tokens to backend scaffold routes:
+  - `POST /auth/social/google`
+  - `POST /auth/social/apple`
+- Production still requires server-side token verification and issuing real app sessions/JWTs.
