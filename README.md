@@ -69,6 +69,31 @@ Notes:
 - `npm run ios` requires macOS for the iOS simulator.
 - On Windows, use Android emulator/device or Expo Go for local mobile testing.
 
+## Backend (Scaffold)
+
+A starter API is available at `apps/api` (Node.js + TypeScript + Express).
+
+### Backend install
+
+```bash
+cd apps/api
+npm install
+```
+
+### Backend env
+
+```bash
+cp .env.example .env
+```
+
+### Backend run
+
+```bash
+npm run dev
+```
+
+Default API URL: `http://localhost:4000`
+
 ## Contributing
 
 ### Workflow
