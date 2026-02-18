@@ -143,6 +143,8 @@ Before opening a pull request, run:
 
 - Google sign-in is implemented in `App.tsx` using `expo-auth-session`.
 - Apple sign-in is available on iOS via `expo-apple-authentication`.
+- Backend session JWTs are stored securely on device using `expo-secure-store`.
+- On app launch, the mobile app restores session state by calling `GET /auth/me`.
 - The app posts social tokens to backend routes:
   - `POST /auth/social/google`
   - `POST /auth/social/apple`

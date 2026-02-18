@@ -8,12 +8,14 @@ describe('API routes', () => {
   const mockVerifyGoogle = vi.fn();
   const mockVerifyApple = vi.fn();
   const mockIssueSession = vi.fn();
+  const mockVerifySession = vi.fn();
 
   const app = createApp({
     authRoutes: createAuthRouter({
       verifyGoogle: mockVerifyGoogle,
       verifyApple: mockVerifyApple,
       issueSession: mockIssueSession,
+      verifySession: mockVerifySession,
     }),
   });
 
@@ -45,6 +47,30 @@ describe('API routes', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Invalid payload');
+  });
+
+  it('GET /auth/me rejects when bearer token is missing', async () => {
+    const response = await request(app).get('/auth/me');
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('Missing bearer token');
+  });
+
+  it('GET /auth/me returns current user when session token is valid', async () => {
+    mockVerifySession.mockResolvedValueOnce({
+      provider: 'google',
+      providerUserId: 'google-sub-123',
+      email: 'student@example.com',
+      role: 'student',
+    });
+
+    const response = await request(app)
+      .get('/auth/me')
+      .set('Authorization', 'Bearer valid-session-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body.user.provider).toBe('google');
+    expect(response.body.user.role).toBe('student');
   });
 
   it('POST /auth/social/apple rejects invalid payload', async () => {

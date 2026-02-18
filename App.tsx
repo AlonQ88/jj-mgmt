@@ -1,5 +1,6 @@
 import * as Google from 'expo-auth-session/providers/google';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -18,11 +19,14 @@ type SocialProvider = 'google' | 'apple';
 
 type SignedInUser = {
   provider: SocialProvider;
+  providerUserId?: string;
   name?: string;
   email?: string;
+  role?: string;
 };
 
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
+const SESSION_TOKEN_KEY = 'jj_mgmt_session_token';
 
 const getApiBaseUrl = () => {
   if (process.env.EXPO_PUBLIC_API_BASE_URL) {
@@ -39,6 +43,7 @@ const getApiBaseUrl = () => {
 export default function App() {
   const [user, setUser] = useState<SignedInUser | null>(null);
   const [loadingGoogleProfile, setLoadingGoogleProfile] = useState(false);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [backendSyncMessage, setBackendSyncMessage] = useState<string | null>(null);
 
   const googleClientId = Platform.select({
@@ -74,6 +79,12 @@ export default function App() {
       });
 
       if (response.ok) {
+        const body = (await response.json()) as {
+          token: string;
+          user: SignedInUser;
+        };
+        await SecureStore.setItemAsync(SESSION_TOKEN_KEY, body.token);
+        setUser(body.user);
         setBackendSyncMessage(`Backend sync complete (${provider}).`);
         return;
       }
@@ -85,6 +96,38 @@ export default function App() {
       console.warn(`Failed to sync ${provider} auth with backend.`, error);
     }
   };
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const token = await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
+        if (!token) {
+          return;
+        }
+
+        const response = await fetch(`${getApiBaseUrl()}/auth/me`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
+          return;
+        }
+
+        const body = (await response.json()) as { user: SignedInUser };
+        setUser(body.user);
+      } catch (error) {
+        console.warn('Session restore failed.', error);
+      } finally {
+        setRestoringSession(false);
+      }
+    };
+
+    void restoreSession();
+  }, []);
 
   useEffect(() => {
     const loadGoogleProfile = async () => {
@@ -171,14 +214,31 @@ export default function App() {
   };
 
   const handleSignOut = () => {
-    setUser(null);
-    setBackendSyncMessage(null);
+    const clearSession = async () => {
+      await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
+      setUser(null);
+      setBackendSyncMessage(null);
+    };
+
+    void clearSession();
   };
 
   const isGoogleConfigured =
     !!process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
     !!process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
     !!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+
+  if (restoringSession) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.card}>
+          <Text style={styles.title}>jj-mgmt</Text>
+          <Text style={styles.subtitle}>Restoring session...</Text>
+        </View>
+        <StatusBar style="dark" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

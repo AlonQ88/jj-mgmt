@@ -4,6 +4,7 @@ import {
   AuthConfigError,
   AuthValidationError,
   issueAppSessionToken,
+  verifyAppSessionToken,
   verifyAppleIdToken,
   verifyGoogleToken,
   type AuthenticatedUser,
@@ -21,12 +22,14 @@ type AuthRouterDeps = {
   verifyGoogle: (payload: SocialPayload) => Promise<AuthenticatedUser>;
   verifyApple: (payload: SocialPayload) => Promise<AuthenticatedUser>;
   issueSession: (user: AuthenticatedUser) => Promise<string>;
+  verifySession: (token: string) => Promise<AuthenticatedUser>;
 };
 
 const defaultDeps: AuthRouterDeps = {
   verifyGoogle: verifyGoogleToken,
   verifyApple: verifyAppleIdToken,
   issueSession: issueAppSessionToken,
+  verifySession: verifyAppSessionToken,
 };
 
 const parsePayload = (rawBody: unknown) => {
@@ -53,6 +56,25 @@ const handleAuthError = (error: unknown, res: Response) => {
 
 export const createAuthRouter = (deps: AuthRouterDeps = defaultDeps) => {
   const router = Router();
+
+  router.get('/me', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing bearer token' });
+    }
+
+    const token = authHeader.slice('Bearer '.length).trim();
+    if (!token) {
+      return res.status(401).json({ error: 'Missing bearer token' });
+    }
+
+    try {
+      const user = await deps.verifySession(token);
+      return res.status(200).json({ user });
+    } catch (error) {
+      return handleAuthError(error, res);
+    }
+  });
 
   router.post('/social/google', async (req, res) => {
     const parsed = parsePayload(req.body);

@@ -14,6 +14,7 @@ export type AuthenticatedUser = {
   email?: string;
   name?: string;
   emailVerified?: boolean;
+  role?: string;
 };
 
 export class AuthConfigError extends Error {
@@ -163,4 +164,31 @@ export const issueAppSessionToken = async (user: AuthenticatedUser): Promise<str
     .setIssuedAt()
     .setExpirationTime('7d')
     .sign(jwtSecret);
+};
+
+export const verifyAppSessionToken = async (token: string): Promise<AuthenticatedUser> => {
+  const secret = process.env.APP_JWT_SECRET;
+  if (!secret) {
+    throw new AuthConfigError('APP_JWT_SECRET is required to validate app sessions.');
+  }
+
+  const jwtSecret = new TextEncoder().encode(secret);
+  const verified = await jwtVerify(token, jwtSecret, { algorithms: ['HS256'] });
+  const claims = verified.payload;
+
+  const provider = claims.provider;
+  const providerUserId = claims.providerUserId;
+
+  if ((provider !== 'google' && provider !== 'apple') || typeof providerUserId !== 'string') {
+    throw new AuthValidationError('Session token payload is invalid.');
+  }
+
+  return {
+    provider,
+    providerUserId,
+    email: typeof claims.email === 'string' ? claims.email : undefined,
+    name: typeof claims.name === 'string' ? claims.name : undefined,
+    emailVerified: parseBoolean(claims.emailVerified),
+    role: typeof claims.role === 'string' ? claims.role : undefined,
+  };
 };

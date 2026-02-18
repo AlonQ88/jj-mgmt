@@ -6,6 +6,9 @@ import App from '../App';
 
 const mockPromptGoogleSignIn = jest.fn();
 const mockAppleSignIn = jest.fn();
+const mockSecureStoreGetItem = jest.fn();
+const mockSecureStoreSetItem = jest.fn();
+const mockSecureStoreDeleteItem = jest.fn();
 
 let mockGoogleRequest: object | null = {};
 let mockGoogleResponse: { type: string; authentication?: { accessToken?: string } } | null = null;
@@ -16,6 +19,12 @@ jest.mock('expo-auth-session', () => ({
 
 jest.mock('expo-web-browser', () => ({
   maybeCompleteAuthSession: jest.fn(),
+}));
+
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: (...args: unknown[]) => mockSecureStoreGetItem(...args),
+  setItemAsync: (...args: unknown[]) => mockSecureStoreSetItem(...args),
+  deleteItemAsync: (...args: unknown[]) => mockSecureStoreDeleteItem(...args),
 }));
 
 jest.mock('expo-auth-session/providers/google', () => ({
@@ -49,6 +58,12 @@ describe('App social auth', () => {
     mockAppleSignIn.mockReset();
     mockGoogleRequest = {};
     mockGoogleResponse = null;
+    mockSecureStoreGetItem.mockReset();
+    mockSecureStoreSetItem.mockReset();
+    mockSecureStoreDeleteItem.mockReset();
+    mockSecureStoreGetItem.mockResolvedValue(null);
+    mockSecureStoreSetItem.mockResolvedValue(undefined);
+    mockSecureStoreDeleteItem.mockResolvedValue(undefined);
 
     process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID = '';
     process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = '';
@@ -64,11 +79,17 @@ describe('App social auth', () => {
 
     const { getByText } = render(<App />);
 
-    expect(getByText('Set Google OAuth IDs in .env (see .env.example) to enable Google sign-in.')).toBeTruthy();
+    return waitFor(() => {
+      expect(getByText('Set Google OAuth IDs in .env (see .env.example) to enable Google sign-in.')).toBeTruthy();
+    });
   });
 
-  it('invokes Google prompt when user taps Continue with Google', () => {
+  it('invokes Google prompt when user taps Continue with Google', async () => {
     const { getByText } = render(<App />);
+
+    await waitFor(() => {
+      expect(getByText('Continue with Google')).toBeTruthy();
+    });
 
     fireEvent.press(getByText('Continue with Google'));
 
@@ -81,13 +102,27 @@ describe('App social auth', () => {
       authentication: { accessToken: 'token-123' },
     };
 
-    (global.fetch as unknown as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        name: 'Test User',
-        email: 'test@example.com',
-      }),
-    });
+    (global.fetch as unknown as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          name: 'Test User',
+          email: 'test@example.com',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          token: 'backend-session-token',
+          user: {
+            provider: 'google',
+            providerUserId: 'google-sub-123',
+            name: 'Test User',
+            email: 'test@example.com',
+            role: 'student',
+          },
+        }),
+      });
 
     const { getByText } = render(<App />);
 
@@ -97,9 +132,13 @@ describe('App social auth', () => {
 
     expect(getByText('Name: Test User')).toBeTruthy();
     expect(getByText('Email: test@example.com')).toBeTruthy();
+    expect(mockSecureStoreSetItem).toHaveBeenCalledTimes(1);
 
     fireEvent.press(getByText('Sign out'));
 
-    expect(getByText('Continue with Google')).toBeTruthy();
+    await waitFor(() => {
+      expect(getByText('Continue with Google')).toBeTruthy();
+    });
+    expect(mockSecureStoreDeleteItem).toHaveBeenCalledTimes(1);
   });
 });
