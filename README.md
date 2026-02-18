@@ -94,6 +94,12 @@ npm run dev
 
 Default API URL: `http://localhost:4000`
 
+### Backend tests
+
+```bash
+npm test
+```
+
 ## Contributing
 
 ### Workflow
