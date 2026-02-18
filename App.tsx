@@ -1,9 +1,8 @@
-import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -42,14 +41,6 @@ export default function App() {
   const [loadingGoogleProfile, setLoadingGoogleProfile] = useState(false);
   const [backendSyncMessage, setBackendSyncMessage] = useState<string | null>(null);
 
-  const redirectUri = useMemo(
-    () =>
-      AuthSession.makeRedirectUri({
-        scheme: 'jjmgmt',
-      }),
-    []
-  );
-
   const googleClientId = Platform.select({
     ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
     android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
@@ -62,7 +53,6 @@ export default function App() {
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     scopes: ['profile', 'email'],
-    redirectUri,
   });
 
   const syncSocialAuthWithBackend = async (

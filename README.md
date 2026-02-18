@@ -74,6 +74,9 @@ npm run web
 Notes:
 - `npm run ios` requires macOS for the iOS simulator.
 - On Windows, use Android emulator/device or Expo Go for local mobile testing.
+- For Google OAuth on Android, use a development build (not Expo Go):
+  1. `npm run android`
+  2. `npx expo start --dev-client`
 
 ## Backend
 
