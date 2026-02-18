@@ -27,6 +27,9 @@ A React Native app for Jiu Jitsu school operations, built for both managers and 
 - React Native (Expo)
 - TypeScript
 - Android + iOS support from a single codebase
+- Social auth starter:
+  - Google OAuth (Android, iOS, Web)
+  - Apple Sign-In (iOS)
 
 ## Getting Started
 
@@ -41,6 +44,18 @@ A React Native app for Jiu Jitsu school operations, built for both managers and 
 ```bash
 npm install
 ```
+
+Create a local env file:
+
+```bash
+cp .env.example .env
+```
+
+Then set OAuth client IDs in `.env`:
+
+- `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
 
 ### Run
 
@@ -64,11 +79,23 @@ Notes:
 
 ### Testing
 
-This project currently does not have automated tests configured yet.
+Run automated tests:
 
-For now, validate contributions by:
+```bash
+npm test
+```
+
+Also validate contributions by:
 - Running the app (`npm run android` or `npm run ios`)
 - Checking core flows manually after your change
 - Confirming TypeScript compiles without errors
 
-When tests are added, update this README with exact test commands.
+Before opening a pull request, run:
+- `npm test`
+- `npx tsc --noEmit`
+
+## Social Auth Notes
+
+- Google sign-in is implemented in `App.tsx` using `expo-auth-session`.
+- Apple sign-in is available on iOS via `expo-apple-authentication`.
+- This is currently a client-side starter flow. For production, connect tokens to a backend auth system (for example Firebase, Supabase, or custom API session exchange).
