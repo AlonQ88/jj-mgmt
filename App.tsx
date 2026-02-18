@@ -3,10 +3,10 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
