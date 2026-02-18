@@ -1,9 +1,14 @@
 import cors from 'cors';
 import express from 'express';
+import { type Router } from 'express';
 import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 
-export const createApp = () => {
+type CreateAppOptions = {
+  authRoutes?: Router;
+};
+
+export const createApp = (options: CreateAppOptions = {}) => {
   const app = express();
   const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:8081';
 
@@ -18,7 +23,7 @@ export const createApp = () => {
   });
 
   app.use('/health', healthRouter);
-  app.use('/auth', authRouter);
+  app.use('/auth', options.authRoutes ?? authRouter);
 
   return app;
 };

@@ -1,9 +1,25 @@
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
+import { createAuthRouter } from '../routes/auth.js';
+import { AuthValidationError } from '../services/auth.js';
 
 describe('API routes', () => {
-  const app = createApp();
+  const mockVerifyGoogle = vi.fn();
+  const mockVerifyApple = vi.fn();
+  const mockIssueSession = vi.fn();
+
+  const app = createApp({
+    authRoutes: createAuthRouter({
+      verifyGoogle: mockVerifyGoogle,
+      verifyApple: mockVerifyApple,
+      issueSession: mockIssueSession,
+    }),
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
 
   it('GET / returns service status', async () => {
     const response = await request(app).get('/');
@@ -38,30 +54,64 @@ describe('API routes', () => {
     expect(response.body.error).toBe('Invalid payload');
   });
 
-  it('POST /auth/social/google accepts payload but returns scaffold placeholder', async () => {
+  it('POST /auth/social/google returns app session when verification succeeds', async () => {
+    mockVerifyGoogle.mockResolvedValueOnce({
+      provider: 'google',
+      providerUserId: 'google-sub-123',
+      email: 'student@example.com',
+      name: 'Student One',
+      emailVerified: true,
+    });
+    mockIssueSession.mockResolvedValueOnce('app-jwt-token');
+
     const response = await request(app)
       .post('/auth/social/google')
       .send({ idToken: 'sample-id-token' });
 
-    expect(response.status).toBe(501);
-    expect(response.body.message).toContain('Google social auth endpoint scaffolded');
+    expect(response.status).toBe(200);
+    expect(response.body.token).toBe('app-jwt-token');
+    expect(response.body.user.provider).toBe('google');
   });
 
   it('POST /auth/social/google also accepts accessToken payload', async () => {
+    mockVerifyGoogle.mockResolvedValueOnce({
+      provider: 'google',
+      providerUserId: 'google-sub-456',
+    });
+    mockIssueSession.mockResolvedValueOnce('app-jwt-token-2');
+
     const response = await request(app)
       .post('/auth/social/google')
       .send({ accessToken: 'sample-access-token' });
 
-    expect(response.status).toBe(501);
-    expect(response.body.tokenTypeReceived).toBe('accessToken');
+    expect(response.status).toBe(200);
+    expect(response.body.token).toBe('app-jwt-token-2');
   });
 
-  it('POST /auth/social/apple accepts payload but returns scaffold placeholder', async () => {
+  it('POST /auth/social/apple returns app session when verification succeeds', async () => {
+    mockVerifyApple.mockResolvedValueOnce({
+      provider: 'apple',
+      providerUserId: 'apple-sub-123',
+      email: 'student@example.com',
+    });
+    mockIssueSession.mockResolvedValueOnce('apple-session-token');
+
     const response = await request(app)
       .post('/auth/social/apple')
       .send({ idToken: 'sample-id-token' });
 
-    expect(response.status).toBe(501);
-    expect(response.body.message).toContain('Apple social auth endpoint scaffolded');
+    expect(response.status).toBe(200);
+    expect(response.body.token).toBe('apple-session-token');
+    expect(response.body.user.provider).toBe('apple');
+  });
+
+  it('POST /auth/social/google returns 401 when token verification fails', async () => {
+    mockVerifyGoogle.mockRejectedValueOnce(new AuthValidationError('invalid token'));
+
+    const response = await request(app)
+      .post('/auth/social/google')
+      .send({ idToken: 'bad-token' });
+
+    expect(response.status).toBe(401);
   });
 });

@@ -1,7 +1,14 @@
-import { Router } from 'express';
+import { type Response, Router } from 'express';
 import { z } from 'zod';
-
-export const authRouter = Router();
+import {
+  AuthConfigError,
+  AuthValidationError,
+  issueAppSessionToken,
+  verifyAppleIdToken,
+  verifyGoogleToken,
+  type AuthenticatedUser,
+  type SocialPayload,
+} from '../services/auth.js';
 
 const socialAuthSchema = z.object({
   idToken: z.string().min(1).optional(),
@@ -10,28 +17,82 @@ const socialAuthSchema = z.object({
   message: 'Either idToken or accessToken is required',
 });
 
-authRouter.post('/social/google', (req, res) => {
-  const parsed = socialAuthSchema.safeParse(req.body);
+type AuthRouterDeps = {
+  verifyGoogle: (payload: SocialPayload) => Promise<AuthenticatedUser>;
+  verifyApple: (payload: SocialPayload) => Promise<AuthenticatedUser>;
+  issueSession: (user: AuthenticatedUser) => Promise<string>;
+};
+
+const defaultDeps: AuthRouterDeps = {
+  verifyGoogle: verifyGoogleToken,
+  verifyApple: verifyAppleIdToken,
+  issueSession: issueAppSessionToken,
+};
+
+const parsePayload = (rawBody: unknown) => {
+  const parsed = socialAuthSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+    return { error: parsed.error.flatten() } as const;
   }
 
-  // TODO: Verify Google token server-side and issue app session/JWT.
-  return res.status(501).json({
-    message: 'Google social auth endpoint scaffolded. Implement token verification next.',
-    tokenTypeReceived: parsed.data.idToken ? 'idToken' : 'accessToken',
-  });
-});
+  return { data: parsed.data } as const;
+};
 
-authRouter.post('/social/apple', (req, res) => {
-  const parsed = socialAuthSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() });
+const handleAuthError = (error: unknown, res: Response) => {
+  if (error instanceof AuthValidationError) {
+    return res.status(401).json({ error: 'Token validation failed', message: error.message });
   }
 
-  // TODO: Verify Apple identity token server-side and issue app session/JWT.
-  return res.status(501).json({
-    message: 'Apple social auth endpoint scaffolded. Implement token verification next.',
-    tokenTypeReceived: parsed.data.idToken ? 'idToken' : 'accessToken',
+  if (error instanceof AuthConfigError) {
+    return res.status(500).json({ error: 'Auth configuration error', message: error.message });
+  }
+
+  console.error('Unexpected auth error', error);
+  return res.status(500).json({ error: 'Unexpected auth error' });
+};
+
+export const createAuthRouter = (deps: AuthRouterDeps = defaultDeps) => {
+  const router = Router();
+
+  router.post('/social/google', async (req, res) => {
+    const parsed = parsePayload(req.body);
+    if ('error' in parsed) {
+      return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+    }
+
+    try {
+      const user = await deps.verifyGoogle(parsed.data);
+      const token = await deps.issueSession(user);
+
+      return res.status(200).json({
+        token,
+        user,
+      });
+    } catch (error) {
+      return handleAuthError(error, res);
+    }
   });
-});
+
+  router.post('/social/apple', async (req, res) => {
+    const parsed = parsePayload(req.body);
+    if ('error' in parsed) {
+      return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+    }
+
+    try {
+      const user = await deps.verifyApple(parsed.data);
+      const token = await deps.issueSession(user);
+
+      return res.status(200).json({
+        token,
+        user,
+      });
+    } catch (error) {
+      return handleAuthError(error, res);
+    }
+  });
+
+  return router;
+};
+
+export const authRouter = createAuthRouter();

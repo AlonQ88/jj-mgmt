@@ -75,9 +75,9 @@ Notes:
 - `npm run ios` requires macOS for the iOS simulator.
 - On Windows, use Android emulator/device or Expo Go for local mobile testing.
 
-## Backend (Scaffold)
+## Backend
 
-A starter API is available at `apps/api` (Node.js + TypeScript + Express).
+A starter API is available at `apps/api` (Node.js + TypeScript + Express) with social-token verification and app JWT issuance.
 
 ### Backend install
 
@@ -91,6 +91,11 @@ npm install
 ```bash
 cp .env.example .env
 ```
+
+Required auth env vars in `apps/api/.env`:
+- `GOOGLE_CLIENT_ID`
+- `APPLE_SERVICE_ID` or `APPLE_BUNDLE_ID`
+- `APP_JWT_SECRET`
 
 ### Backend run
 
@@ -135,7 +140,7 @@ Before opening a pull request, run:
 
 - Google sign-in is implemented in `App.tsx` using `expo-auth-session`.
 - Apple sign-in is available on iOS via `expo-apple-authentication`.
-- The app now posts social tokens to backend scaffold routes:
+- The app posts social tokens to backend routes:
   - `POST /auth/social/google`
   - `POST /auth/social/apple`
-- Production still requires server-side token verification and issuing real app sessions/JWTs.
+- Backend verifies provider tokens and returns an app session JWT on success.
